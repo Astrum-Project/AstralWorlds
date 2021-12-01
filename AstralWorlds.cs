@@ -4,33 +4,36 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(Astrum.AstralWorlds), "AstralWorlds", "0.1.0", downloadLink: "github.com/Astrum-Project/AstralWorlds")]
+[assembly: MelonInfo(typeof(Astrum.AstralWorlds), "AstralWorlds", "0.1.1", downloadLink: "github.com/Astrum-Project/AstralWorlds")]
 [assembly: MelonGame("VRChat", "VRChat")]
 [assembly: MelonColor(ConsoleColor.DarkMagenta)]
+[assembly: MelonOptionalDependencies("AstralCore")]
 
 namespace Astrum
 {
     public partial class AstralWorlds : MelonMod
     {
-        public static Type RoomManagerType = null;
+        public static PropertyInfo m_CurrentWorld = null;
         public static VRC.Core.ApiWorldInstance CurrentInstance;
-        public static Action<VRC.Core.ApiWorldInstance> OnWorldInstance = new Action<VRC.Core.ApiWorldInstance>(_ => { }); 
+        public static Action<VRC.Core.ApiWorldInstance> OnWorldInstance = new Action<VRC.Core.ApiWorldInstance>(_ => { });
+
+        private static bool hasCore = false;
 
         public override void OnApplicationStart()
         {
-            RoomManagerType = AppDomain.CurrentDomain.GetAssemblies()
+            m_CurrentWorld = AppDomain.CurrentDomain.GetAssemblies()
                 .First(f => f.GetName().Name == "Assembly-CSharp")
                 .GetExportedTypes()
-                .FirstOrDefault(
-                    f => f
-                        .GetProperties()
-                        .Select(f1 => f1.Name)
-                        .Any(f1 => f1 == "field_Private_Static_Dictionary_2_Int32_PortalInternal_0")
-                );
+                .Where(x => x.BaseType == typeof(MonoBehaviour))
+                .Where(x => x.GetMethod("OnConnectedToMaster") != null)
+                .SelectMany(x => x.GetProperties(BindingFlags.Public | BindingFlags.Static))
+                .FirstOrDefault(x => x.PropertyType == typeof(VRC.Core.ApiWorldInstance));
 
-            if (RoomManagerType is null)
-                MelonLogger.Msg("Failed to find the RoomManager type");
-            else MelonLogger.Msg($"RoomManager is {RoomManagerType.Name}");
+            if (m_CurrentWorld is null)
+                MelonLogger.Warning("Failed to find the RoomManager");
+            else MelonLogger.Msg($"RoomManager is {m_CurrentWorld.DeclaringType.Name}");
+
+            hasCore = AppDomain.CurrentDomain.GetAssemblies().Any(x => x.GetName().Name == "AstralCore");
 
             InstanceHistory.Initialize();
             WorldMods.Initialize();
@@ -50,7 +53,7 @@ namespace Astrum
 
             while (CurrentInstance is null)
             {
-                CurrentInstance = (VRC.Core.ApiWorldInstance)RoomManagerType?.GetProperty("field_Internal_Static_ApiWorldInstance_0", BindingFlags.Public | BindingFlags.Static)?.GetValue(null);
+                CurrentInstance = (VRC.Core.ApiWorldInstance)m_CurrentWorld.GetValue(null);
                 yield return null;
             }
 
@@ -62,6 +65,9 @@ namespace Astrum
             if (buildIndex != -1) return;
 
             WorldMods.mods = new object[0] { };
+
+            if (hasCore)
+                WorldMods.API.Module.commands.Clear();
         }
 
         public override void OnGUI()

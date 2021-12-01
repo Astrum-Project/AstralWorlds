@@ -1,4 +1,5 @@
-﻿using MelonLoader;
+﻿using Astrum.AstralCore.Managers;
+using MelonLoader;
 using System;
 using System.IO;
 using System.Linq;
@@ -65,6 +66,11 @@ namespace Astrum
                     .Where(f => f != null)
                     .ToArray();
                 MelonLogger.Msg($"Loaded into {name} with {mods.Length} World Mods");
+            }
+
+            public static class API
+            {
+                public static ModuleManager.Module Module = new ModuleManager.Module("WorldMods");
             }
         }
     }
