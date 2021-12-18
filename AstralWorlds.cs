@@ -4,7 +4,7 @@ using System.Linq;
 using System.Reflection;
 using UnityEngine;
 
-[assembly: MelonInfo(typeof(Astrum.AstralWorlds), "AstralWorlds", "0.1.1", downloadLink: "github.com/Astrum-Project/AstralWorlds")]
+[assembly: MelonInfo(typeof(Astrum.AstralWorlds), "AstralWorlds", "0.2.0", downloadLink: "github.com/Astrum-Project/AstralWorlds")]
 [assembly: MelonGame("VRChat", "VRChat")]
 [assembly: MelonColor(ConsoleColor.DarkMagenta)]
 [assembly: MelonOptionalDependencies("AstralCore")]
@@ -65,9 +65,6 @@ namespace Astrum
             if (buildIndex != -1) return;
 
             WorldMods.mods = new object[0] { };
-
-            if (hasCore)
-                WorldMods.API.Module.commands.Clear();
         }
 
         public override void OnGUI()

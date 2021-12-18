@@ -67,11 +67,6 @@ namespace Astrum
                     .ToArray();
                 MelonLogger.Msg($"Loaded into {name} with {mods.Length} World Mods");
             }
-
-            public static class API
-            {
-                public static ModuleManager.Module Module = new ModuleManager.Module("WorldMods");
-            }
         }
     }
 }
