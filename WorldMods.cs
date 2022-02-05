@@ -1,10 +1,7 @@
-﻿using Astrum.AstralCore.Managers;
-using MelonLoader;
-using System;
+﻿using System;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using UnityEngine.SceneManagement;
 
 namespace Astrum
 {
@@ -17,36 +14,37 @@ namespace Astrum
 
             public static void Initialize()
             {
-                if (Directory.Exists(nameof(AstralWorlds)))
+                if (!Directory.Exists(nameof(AstralWorlds)))
                 {
-                    worlds = Directory.EnumerateFiles(nameof(AstralWorlds))
-                        .Select(f => (f, File.ReadAllBytes(f)))
-                        .Select(f =>
-                        {
-                            try
-                            {
-                                Assembly asm = Assembly.Load(f.Item2);
-                                MelonLogger.Msg($"Loaded {f.f.Substring(13):20} ({SHA256(f.Item2)})");
-                                return asm;
-                            }
-                            catch (Exception ex)
-                            {
-                                MelonLogger.Msg($"Failed to load {f.f}: {ex}");
-                                return null;
-                            }
-                        })
-                        .Where(f => f != null)
-                        .Select(f => f.GetCustomAttributes<AstralWorldTargetAttribute>())
-                        .Aggregate(new AstralWorldTargetAttribute[0], (a, f) => a.Concat(f).ToArray())
-                        .ToArray();
+                    Logger.Warn("AstralWorlds folder does not exist. No world mods will be loaded.");
+                    return;
                 }
-                else MelonLogger.Msg("AstralWorlds folder does not exist. No world mods will be loaded.");
+
+                worlds = Directory.EnumerateFiles(nameof(AstralWorlds))
+                    .Select(f => (f, File.ReadAllBytes(f)))
+                    .Select(f =>
+                    {
+                        try
+                        {
+                            Assembly asm = Assembly.Load(f.Item2);
+                            Logger.Info($"Loaded {f.f.Substring(13):20} ({SHA256(f.Item2)})");
+                            return asm;
+                        }
+                        catch (Exception ex)
+                        {
+                            Logger.Error($"Failed to load {f.f}: {ex}");
+                            return null;
+                        }
+                    })
+                    .Where(f => f != null)
+                    .Select(f => f.GetCustomAttributes<AstralWorldTargetAttribute>())
+                    .Aggregate(new AstralWorldTargetAttribute[0], (a, f) => a.Concat(f).ToArray())
+                    .ToArray();
             }
 
             public static System.Collections.IEnumerator WaitForLocalLoad(string name)
             {
-                Scene scene = SceneManager.GetSceneByName(name);
-                while (!scene.GetRootGameObjects().Any(f => f.name.StartsWith("VRCPlayer[Local]"))) 
+                while (VRC.SDKBase.Networking.LocalPlayer == null) 
                     yield return null;
 
 
@@ -59,13 +57,21 @@ namespace Astrum
                         }
                         catch (Exception ex)
                         {
-                            MelonLogger.Msg($"Failed to load world mod: {ex}");
+                            Logger.Error($"Failed to load world mod: {ex}");
                             return null;
                         }
                     })
                     .Where(f => f != null)
                     .ToArray();
-                MelonLogger.Msg($"Loaded into {name} with {mods.Length} World Mods");
+                Logger.Info($"Loaded into {name} with {mods.Length} World Mods");
+            }
+
+            public static string SHA256(byte[] bytes)
+            {
+                var hash = new System.Text.StringBuilder();
+                foreach (byte theByte in new System.Security.Cryptography.SHA256Managed().ComputeHash(bytes))
+                    hash.Append(theByte.ToString($"x2"));
+                return hash.ToString();
             }
         }
     }

@@ -1,40 +1,21 @@
-﻿using MelonLoader;
+﻿global using Logger = Astrum.AstralCore.Logger;
+using MelonLoader;
 using System;
-using System.Linq;
-using System.Reflection;
-using UnityEngine;
+using VRC.Core;
 
-[assembly: MelonInfo(typeof(Astrum.AstralWorlds), "AstralWorlds", "0.2.0", downloadLink: "github.com/Astrum-Project/AstralWorlds")]
+[assembly: MelonInfo(typeof(Astrum.AstralWorlds), "AstralWorlds", "0.2.1", downloadLink: "github.com/Astrum-Project/AstralWorlds")]
 [assembly: MelonGame("VRChat", "VRChat")]
 [assembly: MelonColor(ConsoleColor.DarkMagenta)]
-[assembly: MelonOptionalDependencies("AstralCore")]
 
 namespace Astrum
 {
     public partial class AstralWorlds : MelonMod
     {
-        public static PropertyInfo m_CurrentWorld = null;
-        public static VRC.Core.ApiWorldInstance CurrentInstance;
-        public static Action<VRC.Core.ApiWorldInstance> OnWorldInstance = new Action<VRC.Core.ApiWorldInstance>(_ => { });
-
-        private static bool hasCore = false;
+        public static event Action<ApiWorldInstance> OnWorldLoaded = new(_ => { });
 
         public override void OnApplicationStart()
         {
-            m_CurrentWorld = AppDomain.CurrentDomain.GetAssemblies()
-                .First(f => f.GetName().Name == "Assembly-CSharp")
-                .GetExportedTypes()
-                .Where(x => x.BaseType == typeof(MonoBehaviour))
-                .Where(x => x.GetMethod("OnConnectedToMaster") != null)
-                .SelectMany(x => x.GetProperties(BindingFlags.Public | BindingFlags.Static))
-                .FirstOrDefault(x => x.PropertyType == typeof(VRC.Core.ApiWorldInstance));
-
-            if (m_CurrentWorld is null)
-                MelonLogger.Warning("Failed to find the RoomManager");
-            else MelonLogger.Msg($"RoomManager is {m_CurrentWorld.DeclaringType.Name}");
-
-            hasCore = AppDomain.CurrentDomain.GetAssemblies().Any(x => x.GetName().Name == "AstralCore");
-
+            Utils.Initialize();
             InstanceHistory.Initialize();
             WorldMods.Initialize();
         }
@@ -47,52 +28,18 @@ namespace Astrum
             MelonCoroutines.Start(WorldMods.WaitForLocalLoad(name));
         }
 
-        private System.Collections.IEnumerator GetWorldInstance()
+        public override void OnSceneWasUnloaded(int index, string _)
         {
-            CurrentInstance = null;
+            if (index == -1) 
+                WorldMods.mods = new object[0] { };
+        }
 
-            while (CurrentInstance is null)
-            {
-                CurrentInstance = (VRC.Core.ApiWorldInstance)m_CurrentWorld.GetValue(null);
+        private static System.Collections.IEnumerator GetWorldInstance()
+        {
+            ApiWorldInstance instance;
+            while ((instance = Utils.GetInstance()) == null) 
                 yield return null;
-            }
-
-            OnWorldInstance(CurrentInstance);
+            OnWorldLoaded(instance);
         }
-
-        public override void OnSceneWasUnloaded(int buildIndex, string _)
-        {
-            if (buildIndex != -1) return;
-
-            WorldMods.mods = new object[0] { };
-        }
-
-        public override void OnGUI()
-        {
-            if (!Input.GetKey(KeyCode.Tab)) return;
-
-            for (int i = 0; i < InstanceHistory.instances.Count; i++)
-                if (GUI.Button(new Rect(151, 1 + 22 * (InstanceHistory.instances.Count - 1 - i), 150, 20), InstanceHistory.instances[i].Item1))
-                    VRC.SDKBase.Networking.GoToRoom(InstanceHistory.instances[i].Item2);
-        }
-
-        public static string SHA256(byte[] bytes, bool caps = false)
-        {
-            var crypt = new System.Security.Cryptography.SHA256Managed();
-            var hash = new System.Text.StringBuilder();
-            byte[] crypto = crypt.ComputeHash(bytes);
-            foreach (byte theByte in crypto)
-                hash.Append(theByte.ToString($"x2"));
-            if (caps) return hash.ToString().ToUpper();
-            else return hash.ToString();
-        }
-    }
-
-    [AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
-    public class AstralWorldTargetAttribute : Attribute
-    {
-        public Type Type;
-        public string WorldID;
-        public string SceneName;
     }
 }
